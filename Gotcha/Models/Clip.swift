@@ -7,17 +7,20 @@ struct Clip: Identifiable, Hashable, Codable {
     var capturedAt: Date
 
     var audioURL: URL?
+    var editor: EditorSettings
 
     init(id: UUID = UUID(),
          title: String,
          duration: TimeInterval,
          capturedAt: Date,
-         audioURL: URL? = nil) {
+         audioURL: URL? = nil,
+         editor: EditorSettings = EditorSettings()) {
         self.id = id
         self.title = title
         self.duration = duration
         self.capturedAt = capturedAt
         self.audioURL = audioURL
+        self.editor = editor
     }
 }
 

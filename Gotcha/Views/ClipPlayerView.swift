@@ -45,6 +45,13 @@ struct ClipPlayerView: View {
         .navigationTitle("Clip")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    ClipEditorView(clip: clip, settings: store.binding(for: clip).editor)
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     onDelete()
