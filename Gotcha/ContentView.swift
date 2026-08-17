@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     private enum Tab: Hashable {
-        case clips, capture
+        case clips, capture, settings
     }
 
     @State private var selection: Tab = .capture
@@ -21,6 +21,10 @@ struct ContentView: View {
             )
                 .tabItem { Label("Capture", systemImage: "record.circle") }
                 .tag(Tab.capture)
+
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(Tab.settings)
         }
         .tint(Theme.ink)
         .environmentObject(store)
