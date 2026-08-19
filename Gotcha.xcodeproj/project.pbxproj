@@ -10,9 +10,22 @@
 		A60637AA302C80ED001E66C6 /* Gotcha.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gotcha.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A60637BA302C80EE001E66C6 /* Exceptions for "Gotcha" folder in "Gotcha" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A60637A9302C80ED001E66C6 /* Gotcha */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A60637AC302C80ED001E66C6 /* Gotcha */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A60637BA302C80EE001E66C6 /* Exceptions for "Gotcha" folder in "Gotcha" target */,
+			);
 			path = Gotcha;
 			sourceTree = "<group>";
 		};
@@ -256,6 +269,7 @@
 				DEVELOPMENT_TEAM = P6PV2R9443;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Gotcha/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Gotcha uses the microphone to keep the last 2 minutes of audio so you can capture moments.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -291,6 +305,7 @@
 				DEVELOPMENT_TEAM = P6PV2R9443;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Gotcha/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Gotcha uses the microphone to keep the last 2 minutes of audio so you can capture moments.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

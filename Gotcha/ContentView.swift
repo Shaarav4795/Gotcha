@@ -8,31 +8,38 @@ struct ContentView: View {
     @State private var selection: Tab = .capture
     @StateObject private var store = ClipStore()
     @StateObject private var mic = MicrophoneMonitor.shared
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
 
     var body: some View {
-        TabView(selection: $selection) {
-            LibraryView()
-                .tabItem { Label("Clips", systemImage: "square.grid.2x2") }
-                .tag(Tab.clips)
+        ZStack {
+            TabView(selection: $selection) {
+                LibraryView()
+                    .tabItem { Label("Clips", systemImage: "square.grid.2x2") }
+                    .tag(Tab.clips)
 
-            CaptureView(
-                mic: mic,
-                onCustomizeClip: { clip in openInGallery(clip) },
-                onSeeAll: { selection = .clips },
-                onOpenClip: { clip in openInGallery(clip) },
-                onEditClip: { clip in openInGallery(clip) }
-            )
-                .tabItem { Label("Capture", systemImage: "record.circle") }
-                .tag(Tab.capture)
+                CaptureView(
+                    mic: mic,
+                    onCustomizeClip: { clip in openInGallery(clip) },
+                    onSeeAll: { selection = .clips },
+                    onOpenClip: { clip in openInGallery(clip) },
+                    onEditClip: { clip in openInGallery(clip) }
+                )
+                    .tabItem { Label("Capture", systemImage: "record.circle") }
+                    .tag(Tab.capture)
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
-                .tag(Tab.settings)
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(Tab.settings)
+            }
+            .tint(Theme.ink)
+            .environmentObject(store)
+            .environmentObject(mic)
+
+            if scenePhase != .active {
+                DoNotCloseOverlay()
+            }
         }
-        .tint(Theme.ink)
-        .environmentObject(store)
-        .environmentObject(mic)
         .onAppear { startBuffering() }
         .onChange(of: bufferMinutes) { _, _ in
             mic.stop()
