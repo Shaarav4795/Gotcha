@@ -7,6 +7,8 @@ struct ContentView: View {
 
     @State private var selection: Tab = .capture
     @StateObject private var store = ClipStore()
+    @StateObject private var mic = MicrophoneMonitor.shared
+    @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
 
     var body: some View {
         TabView(selection: $selection) {
@@ -15,6 +17,8 @@ struct ContentView: View {
                 .tag(Tab.clips)
 
             CaptureView(
+                mic: mic,
+                onCustomizeClip: { clip in openInGallery(clip) },
                 onSeeAll: { selection = .clips },
                 onOpenClip: { clip in openInGallery(clip) },
                 onEditClip: { clip in openInGallery(clip) }
@@ -28,6 +32,16 @@ struct ContentView: View {
         }
         .tint(Theme.ink)
         .environmentObject(store)
+        .environmentObject(mic)
+        .onAppear { startBuffering() }
+        .onChange(of: bufferMinutes) { _, _ in
+            mic.stop()
+            startBuffering()
+        }
+    }
+
+    private func startBuffering() {
+        mic.start(bufferSeconds: Double(bufferMinutes * 60))
     }
 
     private func openInGallery(_ clip: Clip) {

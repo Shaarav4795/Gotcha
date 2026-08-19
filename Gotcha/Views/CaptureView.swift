@@ -1,12 +1,17 @@
 import SwiftUI
 
 struct CaptureView: View {
+    var mic: MicrophoneMonitor = MicrophoneMonitor()
+    var onCustomizeClip: (Clip) -> Void = { _ in }
     var onSeeAll: () -> Void = {}
     var onOpenClip: (Clip) -> Void = { _ in }
     var onEditClip: (Clip) -> Void = { _ in }
 
     @EnvironmentObject private var store: ClipStore
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
+
+    @State private var capturedClip: Clip?
+    @State private var captureError: String?
 
     var body: some View {
         ZStack {
@@ -31,6 +36,37 @@ struct CaptureView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .sheet(item: $capturedClip) { clip in
+            CaptureSuccessView(clip: clip, onCustomize: onCustomizeClip)
+        }
+        .alert("Couldn't capture", isPresented: captureErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(captureError ?? "")
+        }
+    }
+
+    private func capture() {
+        do {
+            let url = try mic.capture()
+            let realDuration = max(mic.bufferedDuration(), 0.1)
+            let clip = Clip.recording(
+                title: "Gotcha \(store.clips.count + 1)",
+                duration: realDuration,
+                audioURL: url
+            )
+            store.add(clip)
+            capturedClip = clip
+        } catch {
+            captureError = error.localizedDescription
+        }
+    }
+
+    private var captureErrorBinding: Binding<Bool> {
+        Binding(
+            get: { captureError != nil },
+            set: { if !$0 { captureError = nil } }
+        )
     }
 
     private var header: some View {
@@ -49,6 +85,7 @@ struct CaptureView: View {
     private var captureButton: some View {
         VStack(spacing: 20) {
             Button {
+                capture()
             } label: {
                 ZStack {
                     Circle()
@@ -56,7 +93,7 @@ struct CaptureView: View {
                         .frame(width: 150, height: 150)
                         .shadow(color: .black.opacity(0.18), radius: 14, y: 8)
 
-                    LiveWaveform(levels: [0.35, 0.62, 0.44, 0.58])
+                    LiveWaveform(levels: mic.levels)
                 }
             }
             .buttonStyle(PressableButtonStyle())
@@ -87,7 +124,7 @@ struct CaptureView: View {
     }
 
     private var hoursRecordedText: String {
-        let total = Int(store.totalRecordedDuration.rounded())
+        let total = Int(mic.totalActiveSeconds.rounded())
         let hours = total / 3600
         let minutes = (total % 3600) / 60
         return "\(hours)h \(minutes)m"
