@@ -45,6 +45,13 @@ final class MicrophoneMonitor: ObservableObject {
     private var interruptionObserver: NSObjectProtocol?
     private var tapInstalled = false
 
+    private let playbackNode = AVAudioPlayerNode()
+    private let playbackEQ = AVAudioUnitEQ(numberOfBands: 1)
+    private var playbackAttached = false
+    private var playbackFile: AVAudioFile?
+    private var playbackURL: URL?
+    private var scheduledSegmentStart: TimeInterval = 0
+
     func start(bufferSeconds: TimeInterval) {
         self.bufferSeconds = bufferSeconds
 
@@ -235,6 +242,16 @@ final class MicrophoneMonitor: ObservableObject {
         ringCapacity = capacity
         lock.unlock()
 
+        if !playbackAttached {
+            playbackEQ.bands[0].bypass = false
+            playbackEQ.bands[0].gain = 0
+            engine.attach(playbackNode)
+            engine.attach(playbackEQ)
+            engine.connect(playbackNode, to: playbackEQ, format: format)
+            engine.connect(playbackEQ, to: engine.mainMixerNode, format: format)
+            playbackAttached = true
+        }
+
         guard !tapInstalled else { return }
         let installed = SafeInstallTap(engine, input, format) { [weak self] buffer, _ in
             self?.process(buffer)
@@ -333,6 +350,83 @@ final class MicrophoneMonitor: ObservableObject {
 
         if let runStartedAt {
             totalActiveSeconds = accumulatedSeconds + Date().timeIntervalSince(runStartedAt)
+        }
+    }
+
+    private func playbackFile(for url: URL) -> AVAudioFile? {
+        if playbackURL == url, let file = playbackFile { return file }
+        guard let file = try? AVAudioFile(forReading: url) else { return nil }
+        playbackFile = file
+        playbackURL = url
+        return file
+    }
+
+    func currentPlaybackTime() -> TimeInterval? {
+        guard playbackNode.isPlaying,
+              let nodeTime = playbackNode.lastRenderTime,
+              let playerTime = playbackNode.playerTime(forNodeTime: nodeTime) else { return nil }
+        let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
+        return scheduledSegmentStart + elapsed
+    }
+
+    func playClip(url: URL, from start: TimeInterval, to end: TimeInterval, volume: Double) {
+        setPlaybackVolume(volume)
+        ensureEngineRunning()
+        guard engine.isRunning, let file = playbackFile(for: url) else { return }
+        let duration = Double(file.length) / file.processingFormat.sampleRate
+        let s = min(max(start, 0), max(duration - 0.05, 0))
+        scheduledSegmentStart = s
+        let e = min(max(end, s + 0.05), duration)
+        let sampleRate = file.processingFormat.sampleRate
+        let startFrame = AVAudioFramePosition(s * sampleRate)
+        let endFrame = AVAudioFramePosition(e * sampleRate)
+        let frameCount = AVAudioFrameCount(max(endFrame - startFrame, 0))
+        guard frameCount > 0 else { return }
+        playbackNode.scheduleSegment(file, startingFrame: startFrame, frameCount: frameCount, at: nil,
+                                     completionCallbackType: .dataPlayedBack) { _ in }
+        playbackNode.play()
+    }
+
+    func pausePlayback() {
+        playbackNode.pause()
+    }
+
+    func stopPlayback() {
+        playbackNode.stop()
+        scheduledSegmentStart = 0
+    }
+
+    func setPlaybackVolume(_ volume: Double) {
+        playbackEQ.globalGain = Float(20 * log10(max(volume, 0.01)))
+    }
+
+    func seekPlayback(url: URL, to time: TimeInterval, end: TimeInterval) {
+        let wasPlaying = playbackNode.isPlaying
+        playbackNode.stop()
+        ensureEngineRunning()
+        guard engine.isRunning, let file = playbackFile(for: url) else { return }
+        let duration = Double(file.length) / file.processingFormat.sampleRate
+        let t = min(max(time, 0), max(duration - 0.05, 0))
+        scheduledSegmentStart = t
+        let e = min(max(end, t + 0.05), duration)
+        let sampleRate = file.processingFormat.sampleRate
+        let startFrame = AVAudioFramePosition(t * sampleRate)
+        let endFrame = AVAudioFramePosition(e * sampleRate)
+        let frameCount = AVAudioFrameCount(max(endFrame - startFrame, 0))
+        guard frameCount > 0 else { return }
+        playbackNode.scheduleSegment(file, startingFrame: startFrame, frameCount: frameCount, at: nil,
+                                     completionCallbackType: .dataPlayedBack) { _ in }
+        if wasPlaying { playbackNode.play() }
+    }
+
+    private func ensureEngineRunning() {
+        guard !engine.isRunning else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            try engine.start()
+            isRunning = true
+        } catch {
+            return
         }
     }
 }

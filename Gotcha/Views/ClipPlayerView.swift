@@ -1,4 +1,3 @@
-import AVFoundation
 import Combine
 import SwiftUI
 
@@ -8,8 +7,8 @@ struct ClipPlayerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: ClipStore
+    @EnvironmentObject private var mic: MicrophoneMonitor
 
-    @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
     @State private var playhead: Double = 0
 
@@ -62,6 +61,7 @@ struct ClipPlayerView: View {
             }
         }
         .onReceive(timer) { _ in advancePlayhead() }
+        .onAppear { mic.setPlaybackVolume(clip.editor.volume) }
         .onDisappear { stopPlayback() }
     }
 
@@ -126,43 +126,47 @@ struct ClipPlayerView: View {
 
     private func startPlayback() {
         guard let url = clip.audioURL else { return }
-        do {
-            if player == nil {
-                player = try AVAudioPlayer(contentsOf: url)
-                player?.prepareToPlay()
-            }
-            player?.play()
-            isPlaying = true
-        } catch {
-            isPlaying = false
-        }
+        if playhead >= clip.duration { playhead = 0 }
+        mic.playClip(url: url, from: playhead, to: clip.duration, volume: clip.editor.volume)
+        isPlaying = true
     }
 
     private func pausePlayback() {
-        player?.pause()
+        mic.pausePlayback()
         isPlaying = false
     }
 
     private func stopPlayback() {
-        player?.stop()
-        player = nil
+        mic.stopPlayback()
         isPlaying = false
     }
 
     private func advancePlayhead() {
-        guard isPlaying, let player else { return }
-        playhead = player.currentTime
-        if !player.isPlaying {
-            isPlaying = false
-            playhead = 0
-            player.currentTime = 0
+        guard isPlaying else { return }
+
+        if let fileTime = mic.currentPlaybackTime() {
+            playhead = min(max(fileTime, 0), clip.duration)
+        } else {
+            playhead += 1.0 / 30.0
+        }
+
+        if playhead >= clip.duration {
+            if clip.editor.loop, let url = clip.audioURL {
+                playhead = 0
+                mic.playClip(url: url, from: 0, to: clip.duration, volume: clip.editor.volume)
+            } else {
+                playhead = clip.duration
+                stopPlayback()
+            }
         }
     }
 
     private func seek(to fraction: Double) {
         let clamped = min(max(fraction, 0), 1)
         playhead = clamped * clip.duration
-        player?.currentTime = playhead
+        if let url = clip.audioURL {
+            mic.seekPlayback(url: url, to: playhead, end: clip.duration)
+        }
     }
 }
 
@@ -170,5 +174,6 @@ struct ClipPlayerView: View {
     NavigationStack {
         ClipPlayerView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date()))
             .environmentObject(ClipStore())
+            .environmentObject(MicrophoneMonitor())
     }
 }
