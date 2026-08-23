@@ -5,21 +5,36 @@ struct Clip: Identifiable, Hashable, Codable {
     var title: String
     var duration: TimeInterval
     var capturedAt: Date
+    var hasImage: Bool
 
     var audioURL: URL?
+
+    var imageData: Data?
+
+    var trimStart: Double
+    var trimEnd: Double
+
     var editor: EditorSettings
 
     init(id: UUID = UUID(),
          title: String,
          duration: TimeInterval,
          capturedAt: Date,
+         hasImage: Bool,
          audioURL: URL? = nil,
+         imageData: Data? = nil,
+         trimStart: Double = 0,
+         trimEnd: Double = 1,
          editor: EditorSettings = EditorSettings()) {
         self.id = id
         self.title = title
         self.duration = duration
         self.capturedAt = capturedAt
+        self.hasImage = hasImage
         self.audioURL = audioURL
+        self.imageData = imageData
+        self.trimStart = trimStart
+        self.trimEnd = trimEnd
         self.editor = editor
     }
 }
@@ -30,7 +45,10 @@ extension Clip {
             title: title,
             duration: duration,
             capturedAt: Date(),
-            audioURL: audioURL
+            hasImage: false,
+            audioURL: audioURL,
+            trimStart: 0,
+            trimEnd: 1
         )
     }
 

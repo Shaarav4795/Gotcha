@@ -1,11 +1,16 @@
 import SwiftUI
 
+enum ClipRoute: Hashable {
+    case edit(Clip)
+}
+
 struct LibraryView: View {
     @EnvironmentObject private var store: ClipStore
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
+    @Binding var path: NavigationPath
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if store.clips.isEmpty {
                     emptyState
@@ -18,6 +23,12 @@ struct LibraryView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: Clip.self) { clip in
                 ClipPlayerView(clip: clip) { store.delete(clip) }
+            }
+            .navigationDestination(for: ClipRoute.self) { route in
+                switch route {
+                case .edit(let clip):
+                    ClipEditorView(clip: clip)
+                }
             }
             .tint(Theme.ink)
         }
@@ -138,7 +149,7 @@ private struct ClipCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Theme.surface)
 
-            Image(systemName: "waveform")
+            Image(systemName: clip.hasImage ? "photo.fill" : "waveform")
                 .font(.system(size: 20))
                 .foregroundStyle(Theme.ink)
         }
@@ -147,6 +158,6 @@ private struct ClipCard: View {
 }
 
 #Preview {
-    LibraryView()
+    LibraryView(path: .constant(NavigationPath()))
         .environmentObject(ClipStore())
 }

@@ -239,7 +239,7 @@ private struct RecentCaptureRow: View {
         ZStack {
             RoundedRectangle(cornerRadius: 9)
                 .fill(Theme.surface)
-            Image(systemName: "waveform")
+            Image(systemName: clip.hasImage ? "photo" : "waveform")
                 .font(.system(size: 16))
                 .foregroundStyle(Theme.muted)
         }

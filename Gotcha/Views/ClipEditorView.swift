@@ -1,397 +1,959 @@
+import Combine
+import PhotosUI
 import SwiftUI
 
 struct ClipEditorView: View {
     let clip: Clip
-    @Binding var settings: EditorSettings
-    @Environment(\.dismiss) private var dismiss
 
-    @State private var activeTool: EditorTool = .layout
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: ClipStore
+    @EnvironmentObject private var mic: MicrophoneMonitor
+    @State private var isPlaying = false
+    @State private var playhead: Double = 0
+    @State private var selectedTool: EditTool?
+    @State private var loop: Bool
+
+    @State private var caption: String
+    @State private var captionSize: Double
+    @State private var captionPosition: CGPoint
+    @State private var captionWeight: CaptionWeight
+    @State private var captionAlign: TextAlign
+    @State private var captionCase: TextCaseOption
+
+    @State private var subtitlesOn: Bool
+    @State private var subtitleSize: Double
+    @State private var subtitlePosition: CGPoint
+
+    @State private var aspect: Aspect
+    @State private var waveformStyle: WaveformStyle
+    @State private var waveformPosition: CGPoint
+    @State private var waveformSensitivity: Double
+    @State private var volume: Double
+
+    @State private var imageData: Data?
+
+    @State private var trimStart: Double
+    @State private var trimEnd: Double
+    @State private var draftTrimStart: Double
+    @State private var draftTrimEnd: Double
+
+    @State private var waveformPeaks: [Float]?
+    @State private var scrubberPeaks: [Float]?
+
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var showCamera = false
+    @State private var showCameraUnavailable = false
+
+    private let timer = Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()
+
+    init(clip: Clip) {
+        self.clip = clip
+        let e = clip.editor
+        _caption = State(initialValue: clip.title)
+        _trimStart = State(initialValue: clip.trimStart)
+        _trimEnd = State(initialValue: clip.trimEnd)
+        _draftTrimStart = State(initialValue: clip.trimStart)
+        _draftTrimEnd = State(initialValue: clip.trimEnd)
+        _imageData = State(initialValue: clip.imageData)
+        _loop = State(initialValue: e.loop)
+        _captionSize = State(initialValue: e.captionSize)
+        _captionPosition = State(initialValue: e.captionPosition)
+        _captionWeight = State(initialValue: e.captionWeight)
+        _captionAlign = State(initialValue: e.captionAlign)
+        _captionCase = State(initialValue: e.captionCase)
+        _subtitlesOn = State(initialValue: e.subtitlesOn)
+        _subtitleSize = State(initialValue: e.subtitleSize)
+        _subtitlePosition = State(initialValue: e.subtitlePosition)
+        _aspect = State(initialValue: e.aspect)
+        _waveformStyle = State(initialValue: e.waveformStyle)
+        _waveformPosition = State(initialValue: e.waveformPosition)
+        _waveformSensitivity = State(initialValue: e.waveformSensitivity)
+        _volume = State(initialValue: e.volume)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            editorHeader
-            stage
-            toolRail
-            toolPanel
+            preview
+            controlDeck
         }
         .background(Theme.paper)
+        .navigationTitle("Edit Clip")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var editorHeader: some View {
-        HStack(spacing: 16) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold))
-            }
-
-            Spacer()
-
-            Text("Edit")
-                .font(.headline)
-
-            Spacer()
-
-            Button {
-                dismiss()
-            } label: {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-            }
-        }
-        .foregroundStyle(Theme.ink)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-    }
-
-    private var stage: some View {
-        EditorStage(settings: settings)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
-    }
-
-    private var toolRail: some View {
-        HStack(spacing: 0) {
-            ForEach(EditorTool.allCases) { tool in
-                Button {
-                    activeTool = tool
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tool.icon)
-                            .font(.system(size: 19))
-                            .frame(height: 22)
-                        Text(tool.title)
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(activeTool == tool ? Theme.ink : Theme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { saveAndDismiss() } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 12)
+        .onReceive(timer) { _ in advancePlayhead() }
+        .onAppear {
+            mic.setPlaybackVolume(volume)
+            loadWaveform()
+        }
+        .onDisappear {
+            mic.stopPlayback()
+            isPlaying = false
+        }
+        .onChange(of: volume) { _, newValue in
+            mic.setPlaybackVolume(newValue)
+        }
+        .onChange(of: selectedTool) { oldValue, newValue in
+            if oldValue == .trim {
+                commitTrim()
+            } else if newValue == .trim {
+                draftTrimStart = trimStart
+                draftTrimEnd = trimEnd
+            }
+        }
+        .onChange(of: pickedItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    attachImage(data)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker { data in
+                attachImage(data)
+            }
+        }
+        .alert("Camera unavailable", isPresented: $showCameraUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The camera isn't available here (it requires a real device). Use Photos instead.")
+        }
+        .animation(.snappy(duration: 0.22), value: selectedTool)
+    }
+
+    private var trimmedDuration: Double {
+        (trimEnd - trimStart) * clip.duration
+    }
+
+    private var playheadFraction: Double {
+        guard trimmedDuration > 0 else { return 0 }
+        return min(max(playhead / trimmedDuration, 0), 1)
+    }
+
+    private func togglePlay() {
+        if isPlaying {
+            mic.pausePlayback()
+            isPlaying = false
+        } else {
+            if let url = clip.audioURL {
+                if playhead >= trimmedDuration { playhead = 0 }
+                mic.playClip(url: url,
+                             from: trimStart * clip.duration + playhead,
+                             to: trimEnd * clip.duration,
+                             volume: volume)
+            } else if playhead >= trimmedDuration {
+                playhead = 0
+            }
+            isPlaying = true
+        }
+    }
+
+    private func advancePlayhead() {
+        guard isPlaying else { return }
+
+        if let fileTime = mic.currentPlaybackTime() {
+            let relative = fileTime - trimStart * clip.duration
+            playhead = min(max(relative, 0), trimmedDuration)
+        } else {
+            playhead += 1.0 / 30.0
+        }
+
+        if playhead >= trimmedDuration {
+            if loop {
+                playhead = 0
+                if let url = clip.audioURL {
+                    mic.playClip(url: url,
+                                 from: trimStart * clip.duration,
+                                 to: trimEnd * clip.duration,
+                                 volume: volume)
+                }
+            } else {
+                playhead = trimmedDuration
+                mic.stopPlayback()
+                isPlaying = false
+            }
+        }
+    }
+
+    private func seek(to fraction: Double) {
+        let clamped = min(max(fraction, trimStart), trimEnd)
+        let span = max(trimEnd - trimStart, 0.001)
+        playhead = ((clamped - trimStart) / span) * trimmedDuration
+        if let url = clip.audioURL {
+            mic.seekPlayback(url: url,
+                             to: trimStart * clip.duration + playhead,
+                             end: trimEnd * clip.duration)
+        }
+    }
+
+    private func commitTrim() {
+        trimStart = draftTrimStart
+        trimEnd = draftTrimEnd
+        if playhead > trimmedDuration { playhead = trimmedDuration }
+    }
+
+    private var currentSettings: EditorSettings {
+        EditorSettings(
+            captionSize: captionSize,
+            captionPosition: captionPosition,
+            captionWeight: captionWeight,
+            captionAlign: captionAlign,
+            captionCase: captionCase,
+            subtitlesOn: subtitlesOn,
+            subtitleSize: subtitleSize,
+            subtitlePosition: subtitlePosition,
+            aspect: aspect,
+            waveformStyle: waveformStyle,
+            waveformPosition: waveformPosition,
+            waveformSensitivity: waveformSensitivity,
+            volume: volume,
+            loop: loop
+        )
+    }
+
+    private func saveAndDismiss() {
+        if selectedTool == .trim { commitTrim() }
+
+        var updated = clip
+        let trimmed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { updated.title = trimmed }
+        updated.trimStart = trimStart
+        updated.trimEnd = trimEnd
+        updated.imageData = imageData
+        updated.hasImage = imageData != nil
+        updated.editor = currentSettings
+        store.update(updated)
+        dismiss()
+    }
+
+    private func loadWaveform() {
+        guard let url = clip.audioURL else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let previewPeaks = WaveformAnalyzer.peaks(for: url, bars: 400)
+            let timelinePeaks = WaveformAnalyzer.peaks(for: url, bars: 90)
+            DispatchQueue.main.async {
+                waveformPeaks = previewPeaks
+                scrubberPeaks = timelinePeaks
+            }
+        }
+    }
+
+    private func attachImage(_ data: Data) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let image = UIImage(data: data),
+                  let normalized = ImageProcessor.normalizedJPEG(from: image) else { return }
+            DispatchQueue.main.async {
+                imageData = normalized
+            }
+        }
+    }
+
+    private var preview: some View {
+        GeometryReader { outer in
+            let baseWidth: CGFloat = 360
+            let baseHeight: CGFloat = baseWidth / aspect.ratio
+            let scale = min(outer.size.width / baseWidth, outer.size.height / baseHeight)
+
+            ClipPreview(
+                caption: caption,
+                editor: currentSettings,
+                imageData: imageData,
+                waveform: waveformPeaks,
+                trimStart: trimStart,
+                trimEnd: trimEnd,
+                playheadFraction: playheadFraction
+            )
+            .equatable()
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .frame(width: baseWidth, height: baseHeight)
+            .scaleEffect(scale)
+            .frame(width: outer.size.width, height: outer.size.height)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
+    }
+
+    private var controlDeck: some View {
+        VStack(spacing: 0) {
+            transport
+
+            if let tool = selectedTool {
+                Divider().overlay(Theme.hairline)
+                panel(for: tool)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
+            toolRail
+        }
+        .background(Theme.elevated)
         .overlay(alignment: .top) {
             Rectangle().fill(Theme.hairline).frame(height: 1)
         }
     }
 
-    @ViewBuilder
-    private var toolPanel: some View {
-        switch activeTool {
-        case .layout:
-            LayoutPanel(settings: $settings)
-        case .caption:
-            CaptionPanel(settings: $settings)
-        case .waveform:
-            WaveformPanel(settings: $settings)
-        case .audio:
-            AudioPanel(settings: $settings)
+    private var transport: some View {
+        HStack(spacing: 14) {
+            Button { togglePlay() } label: {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.paper)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(Theme.ink))
+            }
+            .buttonStyle(.plain)
+
+            Text(playhead.mmss)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 38, alignment: .leading)
+
+            WaveformScrubber(
+                playheadFraction: playheadFraction,
+                isTrimming: selectedTool == .trim,
+                waveform: scrubberPeaks,
+                minGap: trimMinGap,
+                sensitivity: waveformSensitivity,
+                trimStart: $draftTrimStart,
+                trimEnd: $draftTrimEnd,
+                onSeek: { seek(to: $0) }
+            )
+            .frame(height: 42)
+
+            Text(trimmedDuration.mmss)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 38, alignment: .trailing)
+
+            Button { loop.toggle() } label: {
+                Image(systemName: "repeat")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(loop ? Theme.paper : Theme.ink)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(loop ? Theme.ink : .clear))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(loop ? "Loop on" : "Loop off")
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func panel(for tool: EditTool) -> some View {
+        AdaptivePanel(maxHeight: 240) {
+            panelContent(for: tool)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+        }
+    }
+
+    @ViewBuilder
+    private func panelContent(for tool: EditTool) -> some View {
+        switch tool {
+        case .caption:
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "textformat")
+                        .foregroundStyle(Theme.muted)
+                    TextField("Add a caption", text: $caption)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ink)
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
+
+                LabeledSection(title: "Size") {
+                    Slider(value: $captionSize, in: 12...36)
+                        .tint(Theme.ink)
+                }
+
+                LabeledSection(title: "Weight") {
+                    Picker("Weight", selection: $captionWeight) {
+                        ForEach(CaptionWeight.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(Theme.ink)
+                }
+
+                LabeledSection(title: "Case") {
+                    Picker("Case", selection: $captionCase) {
+                        ForEach(TextCaseOption.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(Theme.ink)
+                }
+            }
+
+        case .image:
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Button {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            showCamera = true
+                        } else {
+                            showCameraUnavailable = true
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "camera.fill")
+                            Text("Camera")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+
+                    PhotosPicker(selection: $pickedItem, matching: .images) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle.angled")
+                            Text("Photos")
+                        }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let imageData, let thumb = ImageProcessor.croppedImage(for: imageData, ratio: aspect.ratio) {
+                    HStack(spacing: 12) {
+                        Image(uiImage: thumb)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                        Text("Image attached")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.ink)
+
+                        Spacer()
+
+                        Button(role: .destructive) {
+                            withAnimation(.snappy(duration: 0.2)) { self.imageData = nil }
+                        } label: {
+                            Text("Remove")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.hairline, lineWidth: 1))
+                }
+            }
+
+        case .trim:
+            HStack(spacing: 10) {
+                nudgeControl(title: "Start", value: $draftTrimStart,
+                             lower: 0, upper: draftTrimEnd - trimMinGap)
+                nudgeControl(title: "End", value: $draftTrimEnd,
+                             lower: draftTrimStart + trimMinGap, upper: 1)
+
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("Kept")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.muted)
+                    Text(trimmedDurationText)
+                        .font(.subheadline.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                }
+                .frame(width: 54)
+            }
+
+        case .aspect:
+            LabeledSection(title: "Format") {
+                Picker("Format", selection: $aspect) {
+                    ForEach(Aspect.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .tint(Theme.ink)
+            }
+
+        case .waveform:
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledSection(title: "Style") {
+                    Picker("Style", selection: $waveformStyle) {
+                        ForEach(WaveformStyle.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(Theme.ink)
+                }
+
+                LabeledSection(title: "Sensitivity") {
+                    VStack(spacing: 6) {
+                        Slider(value: $waveformSensitivity, in: 30...500, step: 10)
+                            .tint(Theme.ink)
+                        HStack {
+                            Text("Boosts the gap between loud and quiet audio")
+                                .font(.caption)
+                                .foregroundStyle(Theme.muted)
+                            Spacer()
+                            Text("\(Int(waveformSensitivity.rounded()))%")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                        }
+                    }
+                }
+            }
+
+        case .volume:
+            VStack(alignment: .leading, spacing: 12) {
+                LabeledSection(title: "Volume") {
+                    HStack(spacing: 10) {
+                        Image(systemName: "speaker.fill")
+                            .font(.caption)
+                            .foregroundStyle(Theme.muted)
+                        Slider(value: $volume, in: 0.5...5.0)
+                            .tint(Theme.ink)
+                        Image(systemName: "speaker.wave.3.fill")
+                            .font(.caption)
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+
+                HStack {
+                    Text("Boost above 100% to amplify quieter audio")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                    Spacer()
+                    Text("\(Int((volume * 100).rounded()))%")
+                        .font(.subheadline.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                }
+            }
+        }
+    }
+
+    private var trimmedDurationText: String {
+        let start = selectedTool == .trim ? draftTrimStart : trimStart
+        let end = selectedTool == .trim ? draftTrimEnd : trimEnd
+        let secs = (end - start) * clip.duration
+        return secs.mmss
+    }
+
+    private var trimMinGap: Double { 0.5 / max(clip.duration, 1) }
+
+    private func nudgeControl(title: String, value: Binding<Double>, lower: Double, upper: Double) -> some View {
+        let step = 0.5 / max(clip.duration, 1)
+        return HStack(spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 30, alignment: .leading)
+
+            Button {
+                value.wrappedValue = min(max(value.wrappedValue - step, lower), upper)
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().stroke(Theme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Text((value.wrappedValue * clip.duration).mmss)
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(width: 34)
+
+            Button {
+                value.wrappedValue = min(max(value.wrappedValue + step, lower), upper)
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().stroke(Theme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var toolRail: some View {
+        HStack(spacing: 6) {
+            ForEach(EditTool.allCases) { tool in
+                let active = selectedTool == tool
+
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        selectedTool = active ? nil : tool
+                    }
+                } label: {
+                    Image(systemName: tool.icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(active ? Theme.paper : Theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(active ? Theme.ink : .clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tool.title)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
     }
 }
 
-enum EditorTool: CaseIterable, Identifiable {
-    case layout, caption, waveform, audio
+private enum EditTool: String, CaseIterable, Identifiable {
+    case caption, image, trim, aspect, waveform, volume
 
-    var id: Self { self }
+    var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .layout: return "Layout"
         case .caption: return "Caption"
-        case .waveform: return "Wave"
-        case .audio: return "Audio"
+        case .image: return "Image"
+        case .trim: return "Trim"
+        case .aspect: return "Format"
+        case .waveform: return "Waveform"
+        case .volume: return "Volume"
         }
     }
 
     var icon: String {
         switch self {
-        case .layout: return "rectangle.portrait.rotate"
         case .caption: return "textformat"
+        case .image: return "photo"
+        case .trim: return "scissors"
+        case .aspect: return "aspectratio"
         case .waveform: return "waveform"
-        case .audio: return "speaker.wave.2"
+        case .volume: return "speaker.wave.2"
         }
     }
 }
 
-private struct EditorStage: View {
-    let settings: EditorSettings
+private struct AdaptivePanel<Content: View>: View {
+    let maxHeight: CGFloat
+    let content: Content
+    @State private var contentHeight: CGFloat = 0
+
+    init(maxHeight: CGFloat, @ViewBuilder content: () -> Content) {
+        self.maxHeight = maxHeight
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.size.height
+                } action: { newValue in
+                    contentHeight = newValue
+                }
+        }
+        .frame(height: min(contentHeight, maxHeight))
+        .animation(.snappy(duration: 0.22), value: contentHeight)
+    }
+}
+
+private struct LabeledSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Theme.ink)
+            content
+        }
+    }
+}
+
+private struct WaveformScrubber: View {
+    let playheadFraction: Double
+    let isTrimming: Bool
+    var waveform: [Float]?
+    var minGap: Double = 0.05
+    var sensitivity: Double = 100
+    @Binding var trimStart: Double
+    @Binding var trimEnd: Double
+    var onSeek: (Double) -> Void = { _ in }
+
+    private enum DragMode {
+        case start, end, shift
+    }
+
+    @State private var dragMode: DragMode?
+    @State private var dragValue: Double = 0
+    @State private var grabOffsetX: CGFloat = 0
+    @State private var grabOffset: Double = 0
+    @State private var shiftSpan: Double = 0
+
+    private let handleWidth: CGFloat = 14
+
+    private var liveStart: Double {
+        switch dragMode {
+        case .start, .shift: return dragValue
+        default: return trimStart
+        }
+    }
+
+    private var liveEnd: Double {
+        switch dragMode {
+        case .end: return dragValue
+        case .shift: return min(dragValue + (trimEnd - trimStart), 1)
+        default: return trimEnd
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let aspect = settings.aspect.ratio
-            let maxWidth = geo.size.width
-            let maxHeight = geo.size.height
-            let width = min(maxWidth, maxHeight * aspect)
-            let height = width / aspect
+            let w = geo.size.width
+            let h: CGFloat = 44
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 22)
-                    .fill(Theme.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22)
-                            .stroke(Theme.hairline, lineWidth: 1)
-                    )
+            ZStack(alignment: .top) {
+                ZStack(alignment: .leading) {
+                    Canvas { ctx, size in
+                        let peaks = waveform ?? WaveformAnalyzer.fakePeaks(count: max(Int(size.width / 4), 4))
+                        let (winStart, winEnd) = isTrimming ? (0.0, 1.0) : (trimStart, trimEnd)
+                        let sampled = Self.sample(peaks, start: winStart, end: winEnd,
+                                                  bars: max(Int(size.width / 4), 4))
+                        let transformed = waveform == nil ? sampled : WaveformAnalyzer.emphasized(sampled, sensitivity: sensitivity)
+                        let maxPeak = max(transformed.max() ?? 1, 0.0001)
 
-                VStack {
-                    captionText
-                        .padding(.horizontal, 18)
-                        .offset(
-                            x: (settings.captionPosition.x - 0.5) * width,
-                            y: (settings.captionPosition.y - 0.82) * height
-                        )
+                        for i in 0..<sampled.count {
+                            let x = size.width * CGFloat(i) / CGFloat(max(sampled.count - 1, 1))
+                            let barWidth = max(size.width / CGFloat(sampled.count) - 1.5, 1)
+                            let peak = transformed[i] / maxPeak
+                            let bh = max(3, CGFloat(peak) * size.height)
+                            let rect = CGRect(x: x, y: (size.height - bh) / 2, width: barWidth, height: bh)
+                            ctx.fill(Path(roundedRect: rect, cornerRadius: 1),
+                                     with: .color(Theme.muted.opacity(0.4)))
+                        }
 
-                    Spacer()
+                        if isTrimming {
+                            let sx = xPos(liveStart, width: size.width)
+                            let ex = xPos(liveEnd, width: size.width)
+                            ctx.fill(Path(CGRect(x: 0, y: 0, width: sx, height: size.height)),
+                                     with: .color(Theme.paper.opacity(0.6)))
+                            ctx.fill(Path(CGRect(x: ex, y: 0, width: size.width - ex, height: size.height)),
+                                     with: .color(Theme.paper.opacity(0.6)))
+                            let sel = CGRect(x: sx, y: 0, width: max(ex - sx, 1), height: size.height)
+                            ctx.fill(Path(sel), with: .color(Theme.ink.opacity(0.10)))
+                            ctx.stroke(Path(sel), with: .color(Theme.ink), lineWidth: 1.5)
+                        } else {
+                            let px = min(max(playheadFraction * size.width - 1, 0), size.width - 2)
+                            ctx.fill(Path(CGRect(x: px, y: 0, width: 2, height: size.height)),
+                                     with: .color(Theme.ink))
+                        }
+                    }
+                    .frame(width: w, height: h)
 
-                    waveform
-                        .offset(
-                            x: (settings.waveformPosition.x - 0.5) * width,
-                            y: (settings.waveformPosition.y - 0.5) * height
-                        )
-                        .padding(.bottom, 14)
-                }
-                .frame(width: width, height: height)
-            }
-            .frame(width: width, height: height)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(height: 360)
-    }
-
-    private var captionText: some View {
-        Text(clipCaption)
-            .font(.system(size: settings.captionSize, weight: settings.captionWeight.weight))
-            .multilineTextAlignment(settings.captionAlign.alignment)
-            .textCase(settings.captionCase.textCase)
-            .frame(
-                maxWidth: .infinity,
-                alignment: Alignment(
-                    horizontal: settings.captionAlign.horizontal,
-                    vertical: .center
-                )
-            )
-            .foregroundStyle(Theme.ink)
-    }
-
-    private var clipCaption: String {
-        "The part where the plan actually worked"
-    }
-
-    @ViewBuilder
-    private var waveform: some View {
-        switch settings.waveformStyle {
-        case .bars:
-            EditorWaveformBars(sensitivity: settings.waveformSensitivity)
-        case .line:
-            EditorWaveformLine(sensitivity: settings.waveformSensitivity)
-        }
-    }
-}
-
-private struct EditorWaveformBars: View {
-    let sensitivity: Double
-
-    private let levels: [Float] = [0.16, 0.32, 0.5, 0.72, 0.44, 0.86, 0.6, 0.38, 0.66, 0.3, 0.52, 0.24, 0.44, 0.7]
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 3) {
-            ForEach(levels.indices, id: \.self) { i in
-                Capsule()
-                    .fill(Theme.ink)
-                    .frame(width: 4, height: barHeight(levels[i]))
-            }
-        }
-    }
-
-    private func barHeight(_ level: Float) -> CGFloat {
-        4 + CGFloat(min(max(level, 0), 1)) * (sensitivity / 100) * 34
-    }
-}
-
-private struct EditorWaveformLine: View {
-    let sensitivity: Double
-
-    var body: some View {
-        WaveformLineShape(sensitivity: sensitivity)
-            .stroke(Theme.ink, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            .frame(width: 170, height: 42)
-    }
-}
-
-private struct WaveformLineShape: Shape {
-    let sensitivity: Double
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let points = 24
-        let step = rect.width / CGFloat(points - 1)
-        let amplitude = rect.height * 0.42 * (sensitivity / 100)
-
-        for i in 0..<points {
-            let x = CGFloat(i) * step
-            let wave = sin(Double(i) * 0.9) * 0.55 + sin(Double(i) * 0.31) * 0.45
-            let y = rect.midY - CGFloat(wave) * amplitude
-            if i == 0 {
-                path.move(to: CGPoint(x: x, y: y))
-            } else {
-                path.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-        return path
-    }
-}
-
-private struct LayoutPanel: View {
-    @Binding var settings: EditorSettings
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            panelLabel("Aspect")
-
-            HStack(spacing: 8) {
-                ForEach(Aspect.allCases) { aspect in
-                    Button {
-                        settings.aspect = aspect
-                    } label: {
-                        Text(aspect.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(settings.aspect == aspect ? Theme.paper : Theme.ink)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(settings.aspect == aspect ? Theme.ink : Theme.elevated)
+                    if !isTrimming {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { g in
+                                        let local = Double(min(max(g.location.x / w, 0), 1))
+                                        let full = trimStart + local * (trimEnd - trimStart)
+                                        onSeek(full)
+                                    }
                             )
                     }
-                    .buttonStyle(.plain)
+
+                    if isTrimming {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { g in
+                                        if dragMode == nil {
+                                            beginDrag(at: g.location, trackWidth: w)
+                                        } else {
+                                            updateDrag(at: g.location, trackWidth: w)
+                                        }
+                                    }
+                                    .onEnded { _ in endDrag() }
+                            )
+                    }
+
+                    if isTrimming {
+                        let startX = min(max(xPos(liveStart, width: w) - handleWidth / 2, 0), max(w - handleWidth, 0))
+                        let endX = min(max(xPos(liveEnd, width: w) - handleWidth / 2, 0), max(w - handleWidth, 0))
+                        handle(.start, trackWidth: w)
+                            .offset(x: startX)
+                        handle(.end, trackWidth: w)
+                            .offset(x: endX)
+                    }
                 }
+                .clipped()
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+        .onChange(of: isTrimming) { _, trimming in
+            if trimming { dragMode = nil }
+        }
     }
-}
 
-private struct CaptionPanel: View {
-    @Binding var settings: EditorSettings
+    private func xPos(_ fraction: Double, width: CGFloat) -> CGFloat {
+        CGFloat(min(max(fraction, 0), 1)) * width
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 8) {
-                    panelLabel("Size")
-                    slider(value: $settings.captionSize, range: 12...40)
+    private static func sample(_ peaks: [Float], start: Double, end: Double, bars: Int) -> [Float] {
+        guard bars > 0, !peaks.isEmpty else { return [] }
+        var result = [Float](repeating: 0, count: bars)
+        let span = max(end - start, 0.0001)
+        for i in 0..<bars {
+            let f = start + span * Double(i) / Double(max(bars - 1, 1))
+            let idx = min(max(Int(f * Double(peaks.count - 1)), 0), peaks.count - 1)
+            result[i] = peaks[idx]
+        }
+        return result
+    }
+
+    private func handle(_ kind: DragMode, trackWidth: CGFloat) -> some View {
+        Capsule()
+            .fill(Theme.ink)
+            .frame(width: handleWidth, height: 44)
+            .overlay(
+                VStack(spacing: 3) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Capsule().fill(Theme.paper).frame(width: 2, height: 8)
+                    }
                 }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    panelLabel("Weight")
-                    Picker("Weight", selection: $settings.captionWeight) {
-                        ForEach(CaptionWeight.allCases) { weight in
-                            Text(weight.title).tag(weight)
+            )
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        if dragMode != kind {
+                            dragMode = kind
+                            dragValue = kind == .start ? trimStart : trimEnd
+                            grabOffsetX = g.location.x - xPos(dragValue, width: trackWidth)
                         }
+                        updateDrag(at: g.location, trackWidth: trackWidth)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 190)
-                }
-            }
+                    .onEnded { _ in endDrag() }
+            )
+    }
 
-            VStack(alignment: .leading, spacing: 8) {
-                panelLabel("Alignment")
-                Picker("Alignment", selection: $settings.captionAlign) {
-                    ForEach(TextAlign.allCases) { align in
-                        Text(align.title).tag(align)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                panelLabel("Case")
-                Picker("Case", selection: $settings.captionCase) {
-                    ForEach(TextCaseOption.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
+    private func beginDrag(at location: CGPoint, trackWidth: CGFloat) {
+        let fraction = Double(min(max(location.x / trackWidth, 0), 1))
+        if fraction < liveStart {
+            dragMode = .start
+            dragValue = trimStart
+            grabOffsetX = location.x - xPos(trimStart, width: trackWidth)
+        } else if fraction > liveEnd {
+            dragMode = .end
+            dragValue = trimEnd
+            grabOffsetX = location.x - xPos(trimEnd, width: trackWidth)
+        } else {
+            dragMode = .shift
+            dragValue = trimStart
+            grabOffset = fraction - liveStart
+            shiftSpan = trimEnd - trimStart
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+    }
+
+    private func updateDrag(at location: CGPoint, trackWidth: CGFloat) {
+        guard let dragMode else { return }
+        switch dragMode {
+        case .start:
+            let local = Double(min(max((location.x - grabOffsetX) / trackWidth, 0), 1))
+            dragValue = min(max(local, 0), trimEnd - minGap)
+            trimStart = dragValue
+        case .end:
+            let local = Double(min(max((location.x - grabOffsetX) / trackWidth, 0), 1))
+            dragValue = min(max(local, trimStart + minGap), 1)
+            trimEnd = dragValue
+        case .shift:
+            let fraction = Double(min(max(location.x / trackWidth, 0), 1))
+            dragValue = min(max(fraction - grabOffset, 0), 1 - shiftSpan)
+            trimStart = dragValue
+            trimEnd = dragValue + shiftSpan
+        }
+    }
+
+    private func endDrag() {
+        guard let dragMode else { return }
+        switch dragMode {
+        case .start:
+            trimStart = min(max(dragValue, 0), trimEnd - minGap)
+        case .end:
+            trimEnd = min(max(dragValue, trimStart + minGap), 1)
+        case .shift:
+            let newStart = min(max(dragValue, 0), 1 - shiftSpan)
+            trimStart = newStart
+            trimEnd = newStart + shiftSpan
+        }
+        self.dragMode = nil
     }
 }
 
-private struct WaveformPanel: View {
-    @Binding var settings: EditorSettings
+private struct CameraPicker: UIViewControllerRepresentable {
+    let onImage: (Data) -> Void
+    @Environment(\.dismiss) private var dismiss
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 8) {
-                    panelLabel("Style")
-                    Picker("Style", selection: $settings.waveformStyle) {
-                        ForEach(WaveformStyle.allCases) { style in
-                            Text(style.title).tag(style)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 150)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    panelLabel("Sensitivity")
-                    slider(value: $settings.waveformSensitivity, range: 20...200)
-                }
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
     }
-}
 
-private struct AudioPanel: View {
-    @Binding var settings: EditorSettings
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                panelLabel("Volume")
-                slider(value: $settings.volume, range: 0...1)
-            }
-
-            Toggle(isOn: $settings.loop) {
-                panelLabel("Loop playback")
-            }
-            .tint(Theme.ink)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
     }
-}
 
-private func panelLabel(_ text: String) -> some View {
-    Text(text.uppercased())
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(Theme.muted)
-}
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPicker
 
-private func slider(value: Binding<Double>, range: ClosedRange<Double>) -> some View {
-    Slider(value: value, in: range)
-        .tint(Theme.ink)
+        init(_ parent: CameraPicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.85) {
+                parent.onImage(data)
+            }
+            parent.dismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
 }
 
 #Preview {
     NavigationStack {
-        ClipEditorView(
-            clip: Clip(title: "Sample", duration: 120, capturedAt: Date()),
-            settings: .constant(EditorSettings())
-        )
+        ClipEditorView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false))
+            .environmentObject(ClipStore())
+            .environmentObject(MicrophoneMonitor())
     }
 }

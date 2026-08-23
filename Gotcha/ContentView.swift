@@ -6,6 +6,7 @@ struct ContentView: View {
     }
 
     @State private var selection: Tab = .capture
+    @State private var clipsPath = NavigationPath()
     @StateObject private var store = ClipStore()
     @StateObject private var mic = MicrophoneMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
@@ -14,16 +15,16 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             TabView(selection: $selection) {
-                LibraryView()
+                LibraryView(path: $clipsPath)
                     .tabItem { Label("Clips", systemImage: "square.grid.2x2") }
                     .tag(Tab.clips)
 
                 CaptureView(
                     mic: mic,
-                    onCustomizeClip: { clip in openInGallery(clip) },
+                    onCustomizeClip: { clip in openEditorInGallery(clip) },
                     onSeeAll: { selection = .clips },
                     onOpenClip: { clip in openInGallery(clip) },
-                    onEditClip: { clip in openInGallery(clip) }
+                    onEditClip: { clip in openEditorInGallery(clip) }
                 )
                     .tabItem { Label("Capture", systemImage: "record.circle") }
                     .tag(Tab.capture)
@@ -52,6 +53,16 @@ struct ContentView: View {
     }
 
     private func openInGallery(_ clip: Clip) {
+        var path = NavigationPath()
+        path.append(clip)
+        clipsPath = path
+        selection = .clips
+    }
+
+    private func openEditorInGallery(_ clip: Clip) {
+        var path = NavigationPath()
+        path.append(ClipRoute.edit(clip))
+        clipsPath = path
         selection = .clips
     }
 }

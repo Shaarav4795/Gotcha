@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import SwiftUI
 
 final class ClipStore: ObservableObject {
     let launchedAt: Date = Date()
@@ -54,10 +53,7 @@ final class ClipStore: ObservableObject {
         clips[index] = clip
     }
 
-    func binding(for clip: Clip) -> Binding<Clip> {
-        Binding(
-            get: { self.clips.first { $0.id == clip.id } ?? clip },
-            set: { self.update($0) }
-        )
+    func clip(id: UUID) -> Clip? {
+        clips.first { $0.id == id }
     }
 }
