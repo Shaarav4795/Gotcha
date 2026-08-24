@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum ClipDragElement {
+    case caption, subtitle, waveform
+}
+
 struct ClipPreview: View, Equatable {
     let caption: String
     let editor: EditorSettings
@@ -13,6 +17,13 @@ struct ClipPreview: View, Equatable {
     var trimEnd: Double = 1
     var playheadFraction: Double = 0
 
+    var draggable: Bool = false
+    var onPositionChanged: ((ClipDragElement, CGPoint) -> Void)?
+
+    @State private var dragElement: ClipDragElement?
+    @State private var dragStartFraction: CGPoint = .zero
+    @State private var dragStartPosition: CGPoint = .zero
+
     private let background = Color(white: 0.07)
 
     static func == (lhs: ClipPreview, rhs: ClipPreview) -> Bool {
@@ -24,7 +35,8 @@ struct ClipPreview: View, Equatable {
         lhs.waveform == rhs.waveform &&
         lhs.trimStart == rhs.trimStart &&
         lhs.trimEnd == rhs.trimEnd &&
-        lhs.playheadFraction == rhs.playheadFraction
+        lhs.playheadFraction == rhs.playheadFraction &&
+        lhs.draggable == rhs.draggable
     }
 
     var body: some View {
@@ -78,10 +90,67 @@ struct ClipPreview: View, Equatable {
                                   y: geo.size.height * editor.subtitlePosition.y)
                 }
 
+                if draggable {
+                    dragOverlay(size: geo.size)
+                }
             }
             .animation(.easeInOut(duration: 0.15), value: activeSubtitle)
         }
         .clipped()
+    }
+
+    private func dragOverlay(size: CGSize) -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        let fraction = CGPoint(x: g.location.x / size.width,
+                                               y: g.location.y / size.height)
+                        if dragElement == nil {
+                            dragElement = nearestElement(to: fraction)
+                            dragStartFraction = fraction
+                            dragStartPosition = position(of: dragElement!)
+                        }
+                        guard let element = dragElement else { return }
+                        let delta = CGPoint(x: fraction.x - dragStartFraction.x,
+                                            y: fraction.y - dragStartFraction.y)
+                        let target = CGPoint(x: dragStartPosition.x + delta.x,
+                                             y: dragStartPosition.y + delta.y)
+                        onPositionChanged?(element, snapped(target))
+                    }
+                    .onEnded { _ in dragElement = nil }
+            )
+    }
+
+    private func nearestElement(to fraction: CGPoint) -> ClipDragElement {
+        let captionDist = hypot(fraction.x - editor.captionPosition.x,
+                                fraction.y - editor.captionPosition.y)
+        let subtitleDist = hypot(fraction.x - editor.subtitlePosition.x,
+                                 fraction.y - editor.subtitlePosition.y)
+        let waveformDist = abs(fraction.y - editor.waveformPosition.y)
+
+        if waveformDist <= captionDist && waveformDist <= subtitleDist {
+            return .waveform
+        }
+        return captionDist <= subtitleDist ? .caption : .subtitle
+    }
+
+    private func position(of element: ClipDragElement) -> CGPoint {
+        switch element {
+        case .caption: return editor.captionPosition
+        case .subtitle: return editor.subtitlePosition
+        case .waveform: return editor.waveformPosition
+        }
+    }
+
+    private func snapped(_ point: CGPoint) -> CGPoint {
+        let step = 1.0 / 6.0
+        func snap(_ v: Double) -> Double {
+            let s = (v / step).rounded() * step
+            return min(max(s, step), 1 - step)
+        }
+        return CGPoint(x: snap(point.x), y: snap(point.y))
     }
 
     @ViewBuilder

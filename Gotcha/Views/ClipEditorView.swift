@@ -303,6 +303,17 @@ struct ClipEditorView: View {
         }
     }
 
+    private func moveElement(_ element: ClipDragElement, to point: CGPoint) {
+        switch element {
+        case .caption:
+            captionPosition = point
+        case .subtitle:
+            subtitlePosition = point
+        case .waveform:
+            waveformPosition = CGPoint(x: 0.5, y: point.y)
+        }
+    }
+
     private var preview: some View {
         GeometryReader { outer in
             let baseWidth: CGFloat = 360
@@ -318,7 +329,9 @@ struct ClipEditorView: View {
                 waveform: waveformPeaks,
                 trimStart: trimStart,
                 trimEnd: trimEnd,
-                playheadFraction: playheadFraction
+                playheadFraction: playheadFraction,
+                draggable: true,
+                onPositionChanged: { element, point in moveElement(element, to: point) }
             )
             .equatable()
             .clipShape(RoundedRectangle(cornerRadius: 16))
