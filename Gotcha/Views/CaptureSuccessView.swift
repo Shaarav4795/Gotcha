@@ -77,5 +77,5 @@ struct CaptureSuccessView: View {
 }
 
 #Preview {
-    CaptureSuccessView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false))
+    CaptureSuccessView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false, subtitles: []))
 }

@@ -3,6 +3,8 @@ import SwiftUI
 struct ClipPreview: View, Equatable {
     let caption: String
     let editor: EditorSettings
+    let subtitles: [Clip.SubtitleLine]
+    let activeSubtitle: String?
     let imageData: Data?
 
     var waveform: [Float]?
@@ -16,6 +18,8 @@ struct ClipPreview: View, Equatable {
     static func == (lhs: ClipPreview, rhs: ClipPreview) -> Bool {
         lhs.caption == rhs.caption &&
         lhs.editor == rhs.editor &&
+        lhs.subtitles == rhs.subtitles &&
+        lhs.activeSubtitle == rhs.activeSubtitle &&
         lhs.imageData == rhs.imageData &&
         lhs.waveform == rhs.waveform &&
         lhs.trimStart == rhs.trimStart &&
@@ -59,7 +63,23 @@ struct ClipPreview: View, Equatable {
                         .position(x: geo.size.width * editor.captionPosition.x,
                                   y: geo.size.height * editor.captionPosition.y)
                 }
+
+                if let activeSubtitle {
+                    Text(activeSubtitle)
+                        .font(.system(size: min(editor.subtitleSize, geo.size.height * 0.1), weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.45))
+                        }
+                        .position(x: geo.size.width * editor.subtitlePosition.x,
+                                  y: geo.size.height * editor.subtitlePosition.y)
+                }
+
             }
+            .animation(.easeInOut(duration: 0.15), value: activeSubtitle)
         }
         .clipped()
     }
@@ -225,6 +245,8 @@ private struct LineWaveform: View {
     ClipPreview(
         caption: "Gotcha 1",
         editor: EditorSettings(),
+        subtitles: [Clip.SubtitleLine(start: 0, text: "Sample subtitle.")],
+        activeSubtitle: "Sample subtitle.",
         imageData: nil,
         waveform: nil
     )

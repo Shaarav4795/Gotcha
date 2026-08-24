@@ -41,28 +41,33 @@ struct LibraryView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 28)
 
-                VStack(spacing: 10) {
-                    ForEach(sortedClips) { clip in
-                        NavigationLink(value: clip) {
-                            ClipCard(clip: clip)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button(role: .destructive) { store.delete(clip) } label: {
-                                Label("Delete", systemImage: "trash")
+                ForEach(sections, id: \.section) { group in
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(group.section.rawValue)
+                            .font(.headline)
+                            .foregroundStyle(Theme.ink)
+
+                        VStack(spacing: 10) {
+                            ForEach(group.clips) { clip in
+                                NavigationLink(value: clip) {
+                                    ClipCard(clip: clip)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) { store.delete(clip) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
+                    .padding(.bottom, 28)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
-    }
-
-    private var sortedClips: [Clip] {
-        store.clips.sorted { $0.capturedAt > $1.capturedAt }
     }
 
     private var summary: some View {
@@ -87,6 +92,29 @@ struct LibraryView: View {
         let seconds = total % 60
         if hours > 0 { return "\(hours)h \(minutes)m" }
         return "\(minutes)m \(seconds)s"
+    }
+
+    private enum Section: String, CaseIterable {
+        case today = "Today"
+        case yesterday = "Yesterday"
+        case thisWeek = "This Week"
+        case earlier = "Earlier"
+    }
+
+    private var sections: [(section: Section, clips: [Clip])] {
+        let sorted = store.clips.sorted { $0.capturedAt > $1.capturedAt }
+        return Section.allCases.compactMap { section in
+            let clips = sorted.filter { self.section(for: $0) == section }
+            return clips.isEmpty ? nil : (section, clips)
+        }
+    }
+
+    private func section(for clip: Clip) -> Section {
+        let cal = Calendar.current
+        if cal.isDateInToday(clip.capturedAt) { return .today }
+        if cal.isDateInYesterday(clip.capturedAt) { return .yesterday }
+        if cal.isDate(clip.capturedAt, equalTo: Date(), toGranularity: .weekOfYear) { return .thisWeek }
+        return .earlier
     }
 
     private var emptyState: some View {
@@ -122,9 +150,13 @@ private struct ClipCard: View {
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
 
-                Text(clip.capturedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(Theme.muted)
+                HStack(spacing: 4) {
+                    Image(systemName: "captions.bubble")
+                        .font(.system(size: 10))
+                    Text("\(clip.subtitles.count)")
+                }
+                .font(.caption)
+                .foregroundStyle(Theme.muted)
             }
 
             Spacer(minLength: 8)

@@ -6,6 +6,7 @@ struct Clip: Identifiable, Hashable, Codable {
     var duration: TimeInterval
     var capturedAt: Date
     var hasImage: Bool
+    var subtitles: [SubtitleLine]
 
     var audioURL: URL?
 
@@ -21,6 +22,7 @@ struct Clip: Identifiable, Hashable, Codable {
          duration: TimeInterval,
          capturedAt: Date,
          hasImage: Bool,
+         subtitles: [SubtitleLine],
          audioURL: URL? = nil,
          imageData: Data? = nil,
          trimStart: Double = 0,
@@ -31,11 +33,24 @@ struct Clip: Identifiable, Hashable, Codable {
         self.duration = duration
         self.capturedAt = capturedAt
         self.hasImage = hasImage
+        self.subtitles = subtitles
         self.audioURL = audioURL
         self.imageData = imageData
         self.trimStart = trimStart
         self.trimEnd = trimEnd
         self.editor = editor
+    }
+
+    struct SubtitleLine: Identifiable, Hashable, Codable {
+        let id: UUID
+        let start: TimeInterval
+        var text: String
+
+        init(id: UUID = UUID(), start: TimeInterval, text: String) {
+            self.id = id
+            self.start = start
+            self.text = text
+        }
     }
 }
 
@@ -46,6 +61,7 @@ extension Clip {
             duration: duration,
             capturedAt: Date(),
             hasImage: false,
+            subtitles: [],
             audioURL: audioURL,
             trimStart: 0,
             trimEnd: 1
@@ -55,9 +71,24 @@ extension Clip {
     var durationText: String { duration.mmss }
 }
 
+extension Array where Element == Clip.SubtitleLine {
+    func activeText(at time: TimeInterval) -> String? {
+        let sorted = sorted { $0.start < $1.start }
+        for (index, line) in sorted.enumerated() {
+            guard line.start <= time else { break }
+            let nextStart = index + 1 < sorted.count ? sorted[index + 1].start : .infinity
+            let readingTime = Swift.max(1.2, Double(line.text.split(separator: " ").count) / 2.8)
+            let end = Swift.min(nextStart, line.start + readingTime)
+            if time < end { return line.text }
+        }
+        return nil
+    }
+}
+
 extension TimeInterval {
     var mmss: String {
         let total = Int(rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
+

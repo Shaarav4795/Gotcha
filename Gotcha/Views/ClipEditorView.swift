@@ -21,6 +21,7 @@ struct ClipEditorView: View {
     @State private var captionCase: TextCaseOption
 
     @State private var subtitlesOn: Bool
+    @State private var subtitles: [Clip.SubtitleLine]
     @State private var subtitleSize: Double
     @State private var subtitlePosition: CGPoint
 
@@ -40,9 +41,12 @@ struct ClipEditorView: View {
     @State private var waveformPeaks: [Float]?
     @State private var scrubberPeaks: [Float]?
 
+    @State private var isGeneratingSubtitles = false
+    @State private var subtitleError: String?
     @State private var pickedItem: PhotosPickerItem?
     @State private var showCamera = false
     @State private var showCameraUnavailable = false
+
 
     private let timer = Timer.publish(every: 1.0 / 30.0, on: .main, in: .common).autoconnect()
 
@@ -50,6 +54,7 @@ struct ClipEditorView: View {
         self.clip = clip
         let e = clip.editor
         _caption = State(initialValue: clip.title)
+        _subtitles = State(initialValue: clip.subtitles)
         _trimStart = State(initialValue: clip.trimStart)
         _trimEnd = State(initialValue: clip.trimEnd)
         _draftTrimStart = State(initialValue: clip.trimStart)
@@ -121,6 +126,11 @@ struct ClipEditorView: View {
                 attachImage(data)
             }
         }
+        .alert("Subtitles", isPresented: subtitleErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(subtitleError ?? "")
+        }
         .alert("Camera unavailable", isPresented: $showCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -136,6 +146,10 @@ struct ClipEditorView: View {
     private var playheadFraction: Double {
         guard trimmedDuration > 0 else { return 0 }
         return min(max(playhead / trimmedDuration, 0), 1)
+    }
+
+    private var filePlayhead: Double {
+        trimStart * clip.duration + playhead
     }
 
     private func togglePlay() {
@@ -225,6 +239,7 @@ struct ClipEditorView: View {
         var updated = clip
         let trimmed = caption.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { updated.title = trimmed }
+        updated.subtitles = subtitles
         updated.trimStart = trimStart
         updated.trimEnd = trimEnd
         updated.imageData = imageData
@@ -232,6 +247,38 @@ struct ClipEditorView: View {
         updated.editor = currentSettings
         store.update(updated)
         dismiss()
+    }
+
+    private var currentSubtitleText: String? {
+        guard subtitlesOn else { return nil }
+        return subtitles.activeText(at: filePlayhead)
+    }
+
+    private func generateSubtitles() {
+        guard let url = clip.audioURL else {
+            subtitleError = "This clip has no audio to transcribe."
+            return
+        }
+        isGeneratingSubtitles = true
+        SubtitleGenerator.generate(from: url) { result in
+            DispatchQueue.main.async {
+                isGeneratingSubtitles = false
+                switch result {
+                case .success(let lines):
+                    subtitles = lines
+                    subtitlesOn = true
+                case .failure(let error):
+                    subtitleError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private var subtitleErrorBinding: Binding<Bool> {
+        Binding(
+            get: { subtitleError != nil },
+            set: { if !$0 { subtitleError = nil } }
+        )
     }
 
     private func loadWaveform() {
@@ -265,6 +312,8 @@ struct ClipEditorView: View {
             ClipPreview(
                 caption: caption,
                 editor: currentSettings,
+                subtitles: subtitles,
+                activeSubtitle: currentSubtitleText,
                 imageData: imageData,
                 waveform: waveformPeaks,
                 trimStart: trimStart,
@@ -360,6 +409,69 @@ struct ClipEditorView: View {
     @ViewBuilder
     private func panelContent(for tool: EditTool) -> some View {
         switch tool {
+        case .subtitles:
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle(isOn: $subtitlesOn) {
+                    Label("Show subtitles", systemImage: "captions.bubble")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.ink)
+                }
+                .tint(Theme.ink)
+
+                Button {
+                    generateSubtitles()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isGeneratingSubtitles {
+                            ProgressView().tint(Theme.paper).frame(width: 20)
+                        } else {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 14, weight: .semibold))
+                                .frame(width: 20)
+                        }
+                        Text(isGeneratingSubtitles ? "Transcribing audio…" : "Generate subtitles from audio")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("\(subtitles.count) lines")
+                            .font(.caption.monospacedDigit())
+                            .opacity(0.7)
+                    }
+                    .foregroundStyle(Theme.paper)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.ink))
+                }
+                .buttonStyle(.plain)
+                .disabled(isGeneratingSubtitles || clip.audioURL == nil)
+                .opacity(clip.audioURL == nil ? 0.4 : 1)
+
+                Divider().overlay(Theme.hairline)
+
+                NavigationLink {
+                    SubtitleEditorView(subtitles: $subtitles)
+                } label: {
+                    HStack {
+                        Label("Edit subtitles", systemImage: "text.cursor")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Divider().overlay(Theme.hairline)
+
+                LabeledSection(title: "Size") {
+                    Slider(value: $subtitleSize, in: 10...24)
+                        .tint(Theme.ink)
+                }
+            }
+
         case .caption:
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
@@ -621,12 +733,13 @@ struct ClipEditorView: View {
 }
 
 private enum EditTool: String, CaseIterable, Identifiable {
-    case caption, image, trim, aspect, waveform, volume
+    case subtitles, caption, image, trim, aspect, waveform, volume
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .subtitles: return "Subtitles"
         case .caption: return "Caption"
         case .image: return "Image"
         case .trim: return "Trim"
@@ -638,6 +751,7 @@ private enum EditTool: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .subtitles: return "captions.bubble"
         case .caption: return "textformat"
         case .image: return "photo"
         case .trim: return "scissors"
@@ -952,7 +1066,7 @@ private struct CameraPicker: UIViewControllerRepresentable {
 
 #Preview {
     NavigationStack {
-        ClipEditorView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false))
+        ClipEditorView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false, subtitles: []))
             .environmentObject(ClipStore())
             .environmentObject(MicrophoneMonitor())
     }

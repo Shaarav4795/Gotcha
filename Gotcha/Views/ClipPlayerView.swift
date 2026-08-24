@@ -89,6 +89,8 @@ struct ClipPlayerView: View {
             ClipPreview(
                 caption: clip.title,
                 editor: clip.editor,
+                subtitles: clip.subtitles,
+                activeSubtitle: currentSubtitleText,
                 imageData: clip.imageData,
                 waveform: waveformPeaks,
                 trimStart: clip.trimStart,
@@ -107,6 +109,11 @@ struct ClipPlayerView: View {
             .buttonStyle(.plain)
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var currentSubtitleText: String? {
+        let fileTime = liveClip.trimStart * liveClip.duration + playhead
+        return liveClip.subtitles.activeText(at: fileTime)
     }
 
     private var controls: some View {
@@ -216,7 +223,7 @@ struct ClipPlayerView: View {
 
 #Preview {
     NavigationStack {
-        ClipPlayerView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false))
+        ClipPlayerView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false, subtitles: []))
             .environmentObject(ClipStore())
             .environmentObject(MicrophoneMonitor())
     }
