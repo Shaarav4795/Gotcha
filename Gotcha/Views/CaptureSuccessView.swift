@@ -5,7 +5,7 @@ struct CaptureSuccessView: View {
     let clip: Clip
     var onCustomize: (Clip) -> Void = { _ in }
 
-    init(clip: Clip,
+    init(clip: Clip = Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false, subtitles: []),
          onCustomize: @escaping (Clip) -> Void = { _ in }) {
         self.clip = clip
         self.onCustomize = onCustomize
@@ -49,10 +49,10 @@ struct CaptureSuccessView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Button {
-                        dismiss()
+                    NavigationLink {
+                        ExportView(clip: clip)
                     } label: {
-                        Label("Done", systemImage: "checkmark")
+                        Label("Share", systemImage: "square.and.arrow.up")
                             .font(.headline)
                             .foregroundStyle(Theme.ink)
                             .frame(maxWidth: .infinity)
@@ -77,5 +77,5 @@ struct CaptureSuccessView: View {
 }
 
 #Preview {
-    CaptureSuccessView(clip: Clip(title: "Sample", duration: 120, capturedAt: Date(), hasImage: false, subtitles: []))
+    CaptureSuccessView()
 }

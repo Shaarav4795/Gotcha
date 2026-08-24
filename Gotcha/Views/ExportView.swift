@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ExportView: View {
     let clip: Clip
 
+    @State private var mode: Mode = .export
     @State private var isExporting = false
     @State private var progress: Double = 0
     @State private var exportedURL: URL?
@@ -13,9 +14,16 @@ struct ExportView: View {
 
     private let composer = ClipComposer()
 
+    private enum Mode: String, CaseIterable, Identifiable {
+        case export = "Export"
+        case share = "Share"
+        var id: String { rawValue }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                modePicker
                 summary
 
                 if isExporting {
@@ -31,6 +39,7 @@ struct ExportView: View {
         .background(Theme.paper)
         .navigationTitle("Export")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(.snappy(duration: 0.2), value: mode)
         .animation(.snappy(duration: 0.2), value: isExporting)
         .sheet(isPresented: $showShareSheet, onDismiss: { cleanupExportedFile() }) {
             if let url = exportedURL {
@@ -51,6 +60,18 @@ struct ExportView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred.")
         }
+    }
+
+    private var modePicker: some View {
+        Picker("Mode", selection: $mode) {
+            ForEach(Mode.allCases) { m in
+                Text(m.rawValue).tag(m)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .tint(Theme.ink)
+        .disabled(isExporting)
     }
 
     private var summary: some View {
@@ -106,26 +127,53 @@ struct ExportView: View {
 
     private var progressText: String {
         let pct = Int((progress * 100).rounded())
+        if mode == .share {
+            return "Preparing for share… \(pct)%"
+        }
         return "Exporting… \(pct)%"
     }
 
+    @ViewBuilder
     private var options: some View {
-        VStack(spacing: 12) {
-            optionButton(
-                title: "Save as MP4",
-                subtitle: "to Photos · video with audio, subtitles & caption",
-                systemImage: "video",
-                filled: true
-            ) {
-                exportVideo(saveToPhotos: true)
+        switch mode {
+        case .export:
+            VStack(spacing: 12) {
+                optionButton(
+                    title: "Save as MP4",
+                    subtitle: "to Photos · video with audio, subtitles & caption",
+                    systemImage: "video",
+                    filled: true
+                ) {
+                    exportVideo(saveToPhotos: true)
+                }
+                optionButton(
+                    title: "Save as M4A",
+                    subtitle: "to Files · audio only",
+                    systemImage: "doc",
+                    filled: false
+                ) {
+                    exportAudio()
+                }
             }
-            optionButton(
-                title: "Save as M4A",
-                subtitle: "to Files · audio only",
-                systemImage: "doc",
-                filled: false
-            ) {
-                exportAudio()
+
+        case .share:
+            VStack(spacing: 12) {
+                optionButton(
+                    title: "Share as MP4",
+                    subtitle: "video with audio, subtitles & caption",
+                    systemImage: "video",
+                    filled: true
+                ) {
+                    exportVideo(saveToPhotos: false)
+                }
+                optionButton(
+                    title: "Share as M4A",
+                    subtitle: "audio only",
+                    systemImage: "doc",
+                    filled: false
+                ) {
+                    exportAudio()
+                }
             }
         }
     }
