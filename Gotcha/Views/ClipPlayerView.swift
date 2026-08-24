@@ -41,6 +41,13 @@ struct ClipPlayerView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
+                    ExportView(clip: liveClip)
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
                     ClipEditorView(clip: liveClip)
                 } label: {
                     Image(systemName: "slider.horizontal.3")

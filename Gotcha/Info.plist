@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Gotcha saves exported videos to your Photos library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Gotcha uses speech recognition to turn your captured audio into editable subtitles.</string>
 	<key>UIBackgroundModes</key>
