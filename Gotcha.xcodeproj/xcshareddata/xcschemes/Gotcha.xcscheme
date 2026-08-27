@@ -20,6 +20,20 @@
                ReferencedContainer = "container:Gotcha.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A60637D1302C80EE001E66C6"
+               BuildableName = "GotchaLiveActivity.appex"
+               BlueprintName = "GotchaLiveActivity"
+               ReferencedContainer = "container:Gotcha.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction

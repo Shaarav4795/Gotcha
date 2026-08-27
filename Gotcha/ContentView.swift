@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var mic = MicrophoneMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
+    @AppStorage("setting.dynamicIsland") private var liveActivity = false
 
     var body: some View {
         ZStack {
@@ -41,15 +42,33 @@ struct ContentView: View {
                 DoNotCloseOverlay()
             }
         }
-        .onAppear { startBuffering() }
+        .onAppear {
+            startBuffering()
+            syncDynamicIsland()
+        }
         .onChange(of: bufferMinutes) { _, _ in
             mic.stop()
             startBuffering()
+            syncDynamicIsland()
+        }
+        .onChange(of: liveActivity) { _, _ in
+            syncDynamicIsland()
+        }
+        .onChange(of: mic.isRunning) { _, _ in
+            syncDynamicIsland()
         }
     }
 
     private func startBuffering() {
         mic.start(bufferSeconds: Double(bufferMinutes * 60))
+    }
+
+    private func syncDynamicIsland() {
+        if liveActivity && mic.isRunning {
+            DynamicIslandManager.shared.start(bufferMinutes: bufferMinutes)
+        } else if !liveActivity {
+            DynamicIslandManager.shared.stop()
+        }
     }
 
     private func openInGallery(_ clip: Clip) {

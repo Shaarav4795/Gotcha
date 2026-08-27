@@ -6,8 +6,39 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A60637D0302C80EE001E66C6 /* GotchaLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A60637CF302C80EE001E66C6 /* GotchaLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A6581043303EE47800F82DBE /* Gotcha/CaptureFromIslandIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6581042303EE47800F82DBE /* Gotcha/CaptureFromIslandIntent.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A60637D2302C80EE001E66C6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A60637A2302C80ED001E66C6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A60637D1302C80EE001E66C6;
+			remoteInfo = GotchaLiveActivity;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A60637D4302C80EE001E66C6 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A60637D0302C80EE001E66C6 /* GotchaLiveActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A60637AA302C80ED001E66C6 /* Gotcha.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gotcha.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A60637CF302C80EE001E66C6 /* GotchaLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GotchaLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A6581042303EE47800F82DBE /* Gotcha/CaptureFromIslandIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gotcha/CaptureFromIslandIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -17,6 +48,13 @@
 				Info.plist,
 			);
 			target = A60637A9302C80ED001E66C6 /* Gotcha */;
+		};
+		A60637D9302C80EE001E66C6 /* Exceptions for "GotchaLiveActivity" folder in "GotchaLiveActivity" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A60637D1302C80EE001E66C6 /* GotchaLiveActivity */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -29,10 +67,25 @@
 			path = Gotcha;
 			sourceTree = "<group>";
 		};
+		A60637D5302C80EE001E66C6 /* GotchaLiveActivity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A60637D9302C80EE001E66C6 /* Exceptions for "GotchaLiveActivity" folder in "GotchaLiveActivity" target */,
+			);
+			path = GotchaLiveActivity;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A60637A7302C80ED001E66C6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A60637D7302C80EE001E66C6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -47,6 +100,8 @@
 			children = (
 				A60637AC302C80ED001E66C6 /* Gotcha */,
 				A60637AB302C80ED001E66C6 /* Products */,
+				A6581041303EE47800F82DBD /* Recovered References */,
+				A6581042303EE47800F82DBE /* Gotcha/CaptureFromIslandIntent.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -54,8 +109,17 @@
 			isa = PBXGroup;
 			children = (
 				A60637AA302C80ED001E66C6 /* Gotcha.app */,
+				A60637CF302C80EE001E66C6 /* GotchaLiveActivity.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A6581041303EE47800F82DBD /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				A60637D5302C80EE001E66C6 /* GotchaLiveActivity */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -68,10 +132,12 @@
 				A60637A6302C80ED001E66C6 /* Sources */,
 				A60637A7302C80ED001E66C6 /* Frameworks */,
 				A60637A8302C80ED001E66C6 /* Resources */,
+				A60637D4302C80EE001E66C6 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A60637D3302C80EE001E66C6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A60637AC302C80ED001E66C6 /* Gotcha */,
@@ -82,6 +148,28 @@
 			productName = Gotcha;
 			productReference = A60637AA302C80ED001E66C6 /* Gotcha.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A60637D1302C80EE001E66C6 /* GotchaLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A60637DC302C80EE001E66C6 /* Build configuration list for PBXNativeTarget "GotchaLiveActivity" */;
+			buildPhases = (
+				A60637D6302C80EE001E66C6 /* Sources */,
+				A60637D7302C80EE001E66C6 /* Frameworks */,
+				A60637D8302C80EE001E66C6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A60637D5302C80EE001E66C6 /* GotchaLiveActivity */,
+			);
+			name = GotchaLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = GotchaLiveActivity;
+			productReference = A60637CF302C80EE001E66C6 /* GotchaLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -94,6 +182,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					A60637A9302C80ED001E66C6 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					A60637D1302C80EE001E66C6 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -113,12 +204,20 @@
 			projectRoot = "";
 			targets = (
 				A60637A9302C80ED001E66C6 /* Gotcha */,
+				A60637D1302C80EE001E66C6 /* GotchaLiveActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A60637A8302C80ED001E66C6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A60637D8302C80EE001E66C6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +234,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A60637D6302C80EE001E66C6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A6581043303EE47800F82DBE /* Gotcha/CaptureFromIslandIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A60637D3302C80EE001E66C6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A60637D1302C80EE001E66C6 /* GotchaLiveActivity */;
+			targetProxy = A60637D2302C80EE001E66C6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A60637B5302C80EE001E66C6 /* Debug */ = {
@@ -163,7 +278,7 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_TREE = YES_ERROR;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
@@ -227,7 +342,7 @@
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_TREE = YES_ERROR;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
@@ -264,6 +379,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Gotcha/Gotcha.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P6PV2R9443;
@@ -300,6 +416,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Gotcha/Gotcha.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P6PV2R9443;
@@ -331,6 +448,57 @@
 			};
 			name = Release;
 		};
+		A60637DA302C80EE001E66C6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = GotchaLiveActivity/GotchaLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P6PV2R9443;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GotchaLiveActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Gotcha;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shaarav4795.Gotcha.LiveActivity;
+				PRODUCT_NAME = GotchaLiveActivity;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A60637DB302C80EE001E66C6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = GotchaLiveActivity/GotchaLiveActivity.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P6PV2R9443;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GotchaLiveActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Gotcha;
+				INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shaarav4795.Gotcha.LiveActivity;
+				PRODUCT_NAME = GotchaLiveActivity;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -348,6 +516,15 @@
 			buildConfigurations = (
 				A60637B8302C80EE001E66C6 /* Debug */,
 				A60637B9302C80EE001E66C6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A60637DC302C80EE001E66C6 /* Build configuration list for PBXNativeTarget "GotchaLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A60637DA302C80EE001E66C6 /* Debug */,
+				A60637DB302C80EE001E66C6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

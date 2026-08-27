@@ -2,12 +2,16 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
+    @AppStorage("setting.dynamicIsland") private var liveActivity = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     bufferSection
+                        .padding(.bottom, 28)
+
+                    featuresSection
                         .padding(.bottom, 28)
 
                     aboutSection
@@ -50,6 +54,28 @@ struct SettingsView: View {
             .background(RoundedRectangle(cornerRadius: 16).fill(Theme.elevated))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.hairline, lineWidth: 1))
         }
+    }
+
+    private var featuresSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("Features")
+
+            VStack(spacing: 0) {
+                toggleRow("Live Activity", systemImage: "livephoto", isOn: $liveActivity)
+            }
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.elevated))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.hairline, lineWidth: 1))
+        }
+    }
+
+    private func toggleRow(_ title: String, systemImage: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            Label(title, systemImage: systemImage)
+                .foregroundStyle(Theme.ink)
+        }
+        .tint(Theme.ink)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
     }
 
     private var aboutSection: some View {
