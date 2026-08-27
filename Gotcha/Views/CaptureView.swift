@@ -56,6 +56,7 @@ struct CaptureView: View {
                 audioURL: url
             )
             store.add(clip)
+            DynamicIslandManager.shared.captureSucceeded(bufferMinutes: bufferMinutes)
             capturedClip = clip
         } catch {
             captureError = error.localizedDescription
