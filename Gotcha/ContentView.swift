@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 struct ContentView: View {
@@ -13,6 +14,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
     @AppStorage("setting.dynamicIsland") private var liveActivity = false
+    private let heartbeatTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -46,6 +48,7 @@ struct ContentView: View {
         .onAppear {
             startBuffering()
             syncDynamicIsland()
+            checkShortcutRequests()
         }
         .onChange(of: bufferMinutes) { _, _ in
             mic.stop()
@@ -57,6 +60,14 @@ struct ContentView: View {
         }
         .onChange(of: mic.isRunning) { _, _ in
             syncDynamicIsland()
+        }
+        .onReceive(heartbeatTimer) { _ in
+            writeHeartbeat()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                checkShortcutRequests()
+            }
         }
         .sheet(item: $islandCapturedClip) { clip in
             CaptureSuccessView(clip: clip, onCustomize: { openEditorInGallery($0) })
@@ -71,6 +82,13 @@ struct ContentView: View {
         mic.start(bufferSeconds: Double(bufferMinutes * 60))
     }
 
+    private func writeHeartbeat() {
+        guard mic.isRunning else { return }
+        if let shared = UserDefaults(suiteName: AppGroup.id) {
+            shared.set(Date().timeIntervalSince1970, forKey: AppGroup.heartbeatKey)
+        }
+    }
+
     private func syncDynamicIsland() {
         if liveActivity && mic.isRunning {
             DynamicIslandManager.shared.start(bufferMinutes: bufferMinutes)
@@ -82,6 +100,40 @@ struct ContentView: View {
     private func captureFromDynamicIsland() {
         guard liveActivity else { return }
         runIslandCapture()
+    }
+
+    private func checkShortcutRequests() {
+        guard let shared = UserDefaults(suiteName: AppGroup.id) else { return }
+
+        if shared.bool(forKey: AppGroup.openCaptureKey) {
+            shared.removeObject(forKey: AppGroup.openCaptureKey)
+            selection = .capture
+        }
+        if shared.bool(forKey: AppGroup.openLibraryKey) {
+            shared.removeObject(forKey: AppGroup.openLibraryKey)
+            selection = .clips
+        }
+        if shared.bool(forKey: AppGroup.openSettingsKey) {
+            shared.removeObject(forKey: AppGroup.openSettingsKey)
+            selection = .settings
+        }
+
+        if liveActivity {
+            Task {
+                for _ in 0..<20 {
+                    let capKey = AppGroup.captureRequestKey
+                    let requestedAt = shared.double(forKey: capKey)
+                    if requestedAt > 0 {
+                        shared.removeObject(forKey: capKey)
+                        if Date().timeIntervalSince1970 - requestedAt < 30 {
+                            runIslandCapture()
+                        }
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+            }
+        }
     }
 
     private func runIslandCapture() {
