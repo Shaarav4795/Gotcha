@@ -12,6 +12,7 @@ struct ContentView: View {
     @StateObject private var store = ClipStore()
     @StateObject private var mic = MicrophoneMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
     @AppStorage("setting.dynamicIsland") private var liveActivity = false
     private let heartbeatTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
@@ -25,10 +26,10 @@ struct ContentView: View {
 
                 CaptureView(
                     mic: mic,
-                    onCustomizeClip: { clip in openEditorInGallery(clip) },
+                    onCustomizeClip: { openInGallery($0) },
                     onSeeAll: { selection = .clips },
-                    onOpenClip: { clip in openInGallery(clip) },
-                    onEditClip: { clip in openEditorInGallery(clip) }
+                    onOpenClip: { openInGallery($0) },
+                    onEditClip: { openEditorInGallery($0) }
                 )
                     .tabItem { Label("Capture", systemImage: "record.circle") }
                     .tag(Tab.capture)
@@ -45,14 +46,28 @@ struct ContentView: View {
                 DoNotCloseOverlay()
             }
         }
+        .fullScreenCover(isPresented: showOnboarding) {
+            OnboardingView()
+        }
+        .sheet(item: $islandCapturedClip) { clip in
+            CaptureSuccessView(clip: clip, onCustomize: { openEditorInGallery($0) })
+        }
         .onAppear {
-            startBuffering()
+            updateMic()
             syncDynamicIsland()
             checkShortcutRequests()
         }
+        .onOpenURL { url in
+            guard url.scheme == "gotcha", url.host == "capture" else { return }
+            captureFromDynamicIsland()
+        }
+        .onChange(of: hasCompletedOnboarding) { _, _ in
+            updateMic()
+            syncDynamicIsland()
+        }
         .onChange(of: bufferMinutes) { _, _ in
             mic.stop()
-            startBuffering()
+            updateMic()
             syncDynamicIsland()
         }
         .onChange(of: liveActivity) { _, _ in
@@ -69,17 +84,14 @@ struct ContentView: View {
                 checkShortcutRequests()
             }
         }
-        .sheet(item: $islandCapturedClip) { clip in
-            CaptureSuccessView(clip: clip, onCustomize: { openEditorInGallery($0) })
-        }
-        .onOpenURL { url in
-            guard url.scheme == "gotcha", url.host == "capture" else { return }
-            captureFromDynamicIsland()
-        }
     }
 
-    private func startBuffering() {
-        mic.start(bufferSeconds: Double(bufferMinutes * 60))
+    private func updateMic() {
+        if hasCompletedOnboarding {
+            mic.start(bufferSeconds: Double(bufferMinutes * 60))
+        } else {
+            mic.stop()
+        }
     }
 
     private func writeHeartbeat() {
@@ -90,9 +102,9 @@ struct ContentView: View {
     }
 
     private func syncDynamicIsland() {
-        if liveActivity && mic.isRunning {
+        if liveActivity && hasCompletedOnboarding && mic.isRunning {
             DynamicIslandManager.shared.start(bufferMinutes: bufferMinutes)
-        } else if !liveActivity {
+        } else if !liveActivity || !hasCompletedOnboarding {
             DynamicIslandManager.shared.stop()
         }
     }
@@ -171,6 +183,13 @@ struct ContentView: View {
         path.append(ClipRoute.edit(clip))
         clipsPath = path
         selection = .clips
+    }
+
+    private var showOnboarding: Binding<Bool> {
+        Binding(
+            get: { !hasCompletedOnboarding },
+            set: { if !$0 { hasCompletedOnboarding = true } }
+        )
     }
 }
 

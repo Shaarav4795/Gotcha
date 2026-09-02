@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("setting.bufferMinutes") private var bufferMinutes = 2
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("setting.dynamicIsland") private var liveActivity = false
 
     var body: some View {
@@ -78,6 +79,13 @@ struct SettingsView: View {
         .padding(.vertical, 13)
     }
 
+    private var hairline: some View {
+        Rectangle()
+            .fill(Theme.hairline)
+            .frame(height: 0.5)
+            .padding(.leading, 48)
+    }
+
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader("About")
@@ -92,6 +100,25 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
+
+                hairline
+
+                Button {
+                    hasCompletedOnboarding = false
+                } label: {
+                    HStack(spacing: 12) {
+                        Label("Restart onboarding", systemImage: "arrow.counterclockwise")
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
             .background(RoundedRectangle(cornerRadius: 16).fill(Theme.elevated))
             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.hairline, lineWidth: 1))
