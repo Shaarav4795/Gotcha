@@ -117,3 +117,4 @@ enum TextCaseOption: String, CaseIterable, Identifiable, Hashable, Codable {
         }
     }
 }
+
