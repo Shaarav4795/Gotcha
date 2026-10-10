@@ -386,7 +386,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Gotcha/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Gotcha uses the camera to take a photo to attach to your clip.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Gotcha uses the microphone to keep the last 2 minutes of audio so you can capture moments.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Gotcha saves exported videos to your Photos library.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Gotcha uses speech recognition to turn your captured audio into editable subtitles.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -423,7 +427,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Gotcha/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Gotcha uses the camera to take a photo to attach to your clip.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Gotcha uses the microphone to keep the last 2 minutes of audio so you can capture moments.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Gotcha saves exported videos to your Photos library.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Gotcha uses speech recognition to turn your captured audio into editable subtitles.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
